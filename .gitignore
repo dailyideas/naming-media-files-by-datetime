@@ -4,10 +4,9 @@
 .test/
 .vscode/
 __pycache__/
-caches/
-exports/
-logs/
-temp/
+cache/
+export/
+tmp/
 venv/
 
 
