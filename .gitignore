@@ -1,0 +1,14 @@
+## Project-level ignoring
+.env
+.ipynb_checkpoints/
+.test/
+.vscode/
+__pycache__/
+caches/
+exports/
+logs/
+temp/
+venv/
+
+
+## Local-level ignoring
