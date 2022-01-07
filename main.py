@@ -347,7 +347,8 @@ modificationTypeToStringMap = {
 }
 
 ## Pre-condition
-assert os.path.isdir(mediaFilesDirectory), "Provided directory does not exist"
+assert os.path.isdir(mediaFilesDirectory), \
+    f"Provided directory \"{mediaFilesDirectory}\" does not exist"
 
 ## Main
 if args.r: 
@@ -367,7 +368,13 @@ else:
         os.listdir(mediaFilesDirectory) ]
     pathToFileList = [p for p in pathToFileList if os.path.isfile(p) ]
 
+lastDirectory = None
 for filePath in pathToFileList:
+    ## Prologue
+    currentDirectory = os.path.dirname(filePath)
+    if currentDirectory != lastDirectory:
+        log.info(f"Processing files at directory \"{currentDirectory}\"")
+        lastDirectory = currentDirectory
     ## Main
     fileName = os.path.basename(filePath)
     newFilePath = GetNewFilePath(filePath=filePath, 

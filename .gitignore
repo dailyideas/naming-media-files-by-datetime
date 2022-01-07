@@ -6,8 +6,11 @@
 __pycache__/
 cache/
 export/
+log/
 tmp/
 venv/
 
-
 ## Local-level ignoring
+/*.spec
+/build/
+/dist/
