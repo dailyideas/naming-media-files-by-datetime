@@ -23,7 +23,8 @@ def TipsBeforeInput() -> None:
 def GetTargetDirectory() -> str:
     while True:
         TipsBeforeInput()
-        targetDirectory = input(r"Enter the location of media files for renaming (e.g. C:\Users\eee\Pictures): ")
+        targetDirectory = input(r"Enter the location of media files for renaming (e.g. C:\Users\Public\Pictures): ")
+        targetDirectory = targetDirectory.strip()
         CheckAndRaiseExiting(targetDirectory)
         if os.path.isdir(targetDirectory):
             return targetDirectory
@@ -33,6 +34,7 @@ def GetTargetDirectory() -> str:
 def GetAlternativeDate() -> datetime.date:
     while True:
         alternativeDate = input("Date (YYYY-MM-DD) for files naming if date & time information cannot be found. Leave it empty if you do not care: ")
+        alternativeDate = alternativeDate.strip()
         CheckAndRaiseExiting(alternativeDate)
         if alternativeDate == "":
             print("You did not provide an alternative date. File names will be preceded by 00000000_000000 if date & time information cannot be found")
@@ -47,6 +49,7 @@ def GetAlternativeDate() -> datetime.date:
 def GetIsRecursiveSearch() -> bool:
     while True:
         isRecursiveSearch = input("Do you want the program to recursively search for files to rename in the target folder and all its sub-folders? (y/N)")
+        isRecursiveSearch = isRecursiveSearch.strip()
         CheckAndRaiseExiting(isRecursiveSearch)
         if isRecursiveSearch in ["y", "Y", "yes", "Yes", "YES"]:
             return True

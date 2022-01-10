@@ -1,7 +1,7 @@
 # naming-media-files-by-datetime README
 
 # Background
-Nowadays, more and more people possess multiple photo-taking devices (e.g. mobile phones and digital cameras). Each device may have its own file naming format for the media taken. When we transfer these files to computer and place them under the same folder, there will be a mess. One solution is to rename all the files so that they all follow the same naming convention, which is what this tool doing.
+If we possess multiple photo-taking devices (e.g. a mobile phone and a digital camera), we will find that each device may have its own file naming format for the media taken. When we transfer these files to computer and place them under the same folder, there will be a mess. One solution is to rename all the files so that they all follow the same naming convention, which is what this tool doing.
 
 
 ## Guide
