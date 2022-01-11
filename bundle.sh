@@ -1,8 +1,10 @@
 #!/bin/bash
 pyinstaller --onefile main.py
 pyinstaller --onefile cliAssistant.py
-exportPath="export/"`date +"%Y%m%d_%H%M%S"`
-mkdir -p $exportPath
-cp -r dist/main.exe $exportPath
-cp dist/cliAssistant.exe $exportPath
-cp -r config/ $exportPath
+exportDirectory="export/"`date +"%Y%m%d_%H%M%S"`
+configDirectory="$exportDirectory/config"
+mkdir -p $exportDirectory
+cp -r dist/main.exe $exportDirectory
+cp dist/cliAssistant.exe $exportDirectory
+mkdir -p $configDirectory
+cp config/config.json.example "$configDirectory/config.json"

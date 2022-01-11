@@ -89,7 +89,8 @@ exiftoolDirectory = configData.get("exiftoolDirectory", None) if \
     isinstance(configData, dict) else None
 if isinstance(exiftoolDirectory, str):
     os.environ["PATH"] += f"{exiftoolDirectory};"
-    print(os.environ["PATH"])
+else:
+    log.warning("exiftoolDirectory cannot be found in the config file")
 
 
 #### #### #### #### #### 
