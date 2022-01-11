@@ -46,6 +46,7 @@ EDITED_FILE_NAME_KEYS_LOWER_CASE = ["edit"]
 """
 EDITING_SOFTWARE_KEYS_LOWER_CASE = ["editor", "lightroom", "photoshop"]
 CONFIG_FILE_PATH = "config/config.json"
+FILE_SEQUENCE_NUMBER_DIGITS = 5
 
 #### #### #### #### #### 
 #### Global variables #### 
@@ -234,8 +235,22 @@ def GetInfoFromVideo(filePath:str) -> MediaFileInfo:
             }
         if not isinstance(resultDict, dict):
             return datetimeFound
-        if "CreationDate" in resultDict:
+        if "DateTimeOriginal" in resultDict:
+            if not "+" in resultDict["DateTimeOriginal"]:
+                offsetInfo = resultDict.get("OffsetTime", "")
+                offsetInfo = resultDict.get("OffsetTimeOriginal", "") if \
+                    offsetInfo == "" else offsetInfo
+            else:
+                offsetInfo = ""
             datetimeFound[DatetimeType.ACTUAL].append(
+                GetDatetimeFromExiftoolDatetimeStr(
+                    resultDict["DateTimeOriginal"] + offsetInfo) )
+        if "TimeStamp" in resultDict:
+            datetimeFound[DatetimeType.ACTUAL].append(
+                GetDatetimeFromExiftoolDatetimeStr(
+                    resultDict["TimeStamp"] ) )
+        if "CreationDate" in resultDict:
+            datetimeFound[DatetimeType.BEST_FOUND].append(
                 GetDatetimeFromExiftoolDatetimeStr(
                     resultDict["CreationDate"] ) )
         if "CreateDate" in resultDict:
@@ -273,7 +288,7 @@ def GetInfoFromVideo(filePath:str) -> MediaFileInfo:
         2. https://exiftool.org/exiftool_pod.html
         3. https://exiftool.org/dummies.html
     """
-    command = ["exiftool.exe", "-time:all", "-S", "-j", filePath]
+    command = ["exiftool", "-time:all", "-S", "-j", filePath]
     result = CallExternalProgramAndGetOutput(command)
     try:
         result = json.loads(result) ## NOTE: result is a list of dict
@@ -378,12 +393,13 @@ def GetNewFilePath(filePath:str,
     fileNameDuplicated = True
     while fileNameDuplicated is True:
         ## Pre-condition
-        if sequenceNum >= 999:
+        if sequenceNum >= 10 ** FILE_SEQUENCE_NUMBER_DIGITS - 1:
             log.error("Sequence number exceeds limit")
             AbortProgram()
         ## Main
         sequenceNum += 1
-        sequenceNum_formattedStr = str(sequenceNum).zfill(3)
+        sequenceNum_formattedStr = str(sequenceNum).zfill(
+            FILE_SEQUENCE_NUMBER_DIGITS)
         newFileName = (
             f"{datetimeInfo_formattedStr}_"
             f"{datetimeInfoType_formattedStr}_"
@@ -427,7 +443,7 @@ parser.add_argument("-r",
     help="Search media files in directories recursively")
 #### Initialize global variables
 isExiftoolExist = CallExternalProgramAndGetOutput(
-    command=["exiftool.exe", "-echo", "OK"] ) == "OK"
+    command=["exiftool", "-echo", "OK"] ) == "OK"
 if isExiftoolExist is False:
     log.warning("\"exiftool\" cannot be found. Videos and audios are therefore not processed.")
 
