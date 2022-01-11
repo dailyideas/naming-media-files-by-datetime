@@ -266,22 +266,16 @@ def GetNewFilePath(filePath:str,
     ## Pre-condition
     if mediaFileInfo is None:
         return filePath
-    
-    ## Main
-    if isinstance(alternativeDatetime,datetime.datetime):
-        if mediaFileInfo.DatetimeInfoType == DatetimeType.UNKNOWN:
+    ## Pre-processing
+    if isinstance(alternativeDatetime, datetime.datetime):
+        useAlternative = \
+            (mediaFileInfo.DatetimeInfoType == DatetimeType.UNKNOWN) or \
+            (mediaFileInfo.DatetimeInfoType != DatetimeType.TAKEN and \
+            alternativeDatetime.date() < mediaFileInfo.DatetimeInfo.date() )
+        if useAlternative:
             mediaFileInfo.DatetimeInfoType = DatetimeType.HARDCODED
             mediaFileInfo.DatetimeInfo = alternativeDatetime
-        if mediaFileInfo.DatetimeInfoType != DatetimeType.TAKEN:
-            
-            
-            
-            
-            
-            
-            
-        
-    
+    ## Main
     if not isinstance(mediaFileInfo.DatetimeInfo, datetime.datetime):
         log.warning(f"Cannot obtain datetime info from file \"{fileName}\"")
         datetimeInfo_formattedStr = "00000000_000000"
