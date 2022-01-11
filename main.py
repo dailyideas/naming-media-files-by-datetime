@@ -1,10 +1,12 @@
 import datetime, logging, os, sys, time
-import argparse, enum, re
+import argparse, json, enum
 from dataclasses import dataclass
 from enum import Enum
 from logging.handlers import RotatingFileHandler
 
 from PIL import Image
+
+from util.common import CallExternalProgramAndGetOutput
 
 
 #### #### #### #### #### 
@@ -16,9 +18,23 @@ SCRIPT_DIRECTORY = os.path.dirname(os.path.abspath(__file__) )
 ROOT_DIRECTORY = SCRIPT_DIRECTORY
 LOG_DIRECTORY = os.path.join(ROOT_DIRECTORY, "log/", SCRIPT_NAME)
 LOG_LEVEL = logging.INFO
+## Datetime
+""" Figure out local timezone
+
+    References
+    ---- ----
+    1. https://stackoverflow.com/questions/2720319/python-figure-out-local-timezone
+"""
+LOCAL_TIMEZONE = datetime.datetime.now(
+    datetime.timezone.utc).astimezone(tz=None).tzinfo ## NOTE: For Python version >= 3.6 only 
 ## Application
-IMAGE_FILE_EXTENSIONS = ["JPEG", "jpeg", "JPG", "jpg", "PNG", "png"]
-VIDEO_FILE_EXTENSIONS = ["MP4", "mp4", "MOV", "mov", "WMV", "wmv"]
+SUPPORTED_IMAGE_FILE_EXTENSIONS = [
+    "JPEG", "jpeg", 
+    "JPG", "jpg", 
+    "PNG", "png"]
+SUPPORTED_VIDEO_FILE_EXTENSIONS = [
+    "MP4", "mp4", 
+    "MOV", "mov"]
 """ Naming of media file after it was edited
     1. Apple Inc. devices: append \"(Edited)\" to the file name
 """
@@ -29,13 +45,15 @@ EDITED_FILE_NAME_KEYS_LOWER_CASE = ["edit"]
     3. Lightroom
 """
 EDITING_SOFTWARE_KEYS_LOWER_CASE = ["editor", "lightroom", "photoshop"]
+CONFIG_FILE_PATH = "config/config.json"
 
 #### #### #### #### #### 
 #### Global variables #### 
 #### #### #### #### #### 
 #### Logging
 log = logging.getLogger()
-
+#### Existence of exiftool
+isExiftoolExist = False ## Initialize in main 
 
 #### #### #### #### #### 
 #### Global Setups #### 
@@ -59,9 +77,19 @@ loggers = [logging.getLogger(name) for name in
     logging.root.manager.loggerDict]
 for logger in loggers:
     logger.setLevel(LOG_LEVEL)
-#### MediaInfo object
-MI_TriedLoading = False
-MI = None
+#### Config (after logging)
+configData = None
+if not os.path.isfile(CONFIG_FILE_PATH):
+    log.warning(f"{CONFIG_FILE_PATH} is not found")
+else:
+    with open(CONFIG_FILE_PATH) as f:
+        configData = json.load(f)
+#### Exiftool (after Config)
+exiftoolDirectory = configData.get("exiftoolDirectory", None) if \
+    isinstance(configData, dict) else None
+if isinstance(exiftoolDirectory, str):
+    os.environ["PATH"] += f"{exiftoolDirectory};"
+    print(os.environ["PATH"])
 
 
 #### #### #### #### #### 
@@ -81,10 +109,8 @@ class DatetimeType(Enum):
         1. https://help.mycloud.ch/hc/en-us/articles/360003134159-What-is-the-difference-between-the-date-a-photo-video-was-taken-created-and-modified-
     """
     UNKNOWN = enum.auto()
-    TAKEN = enum.auto() ## The time the photo / video is recorded
-    EDITED = enum.auto() ## The time you edited the file by photo-editing software
-    MODIFIED = enum.auto() ## The time you edited the file, including modification to the file's metadata. This information is set by the OS 
-    CREATED = enum.auto() ## The time the file was saved or archived and is set by the OS (for example when moving, copying, or downloading the file)
+    ACTUAL = enum.auto() ## The actual time that the photo is taken / video is recorded / audio is recorded
+    BEST_FOUND = enum.auto() ## The earliest date time information that could be found in the file's metadata. Yet, it is probably not the actual time we want.
     HARDCODED = enum.auto()
 
 
@@ -96,10 +122,10 @@ class ModificationType(Enum):
 
 @dataclass
 class MediaFileInfo:
-    Width:int
-    Height:int
-    DatetimeInfo:datetime.datetime
-    DatetimeInfoType:DatetimeType
+    Width:int = None
+    Height:int = None
+    DatetimeInfo:datetime.datetime = None
+    DatetimeInfoType:DatetimeType = DatetimeType.UNKNOWN
     EditingSoftware:str = ""
 
 
@@ -111,10 +137,27 @@ def AbortProgram():
     sys.exit(1)
 
 
+def GetEarliestDatetime(*args):
+    candidates = list(filter(
+        lambda x: isinstance(x, datetime.datetime), args) )
+    if len(candidates) == 0:
+        return None
+    return min(candidates)
+
+
 def GetInfoFromImage(filePath:str) -> MediaFileInfo:
+    ## Inner functions
+    def GetDatetimeFromExifDatetimeStr(datetimeStr:str):
+        try:
+            result = datetime.datetime.strptime(datetimeStr, 
+                "%Y:%m:%d %H:%M:%S")
+        except:
+            result = None
+        return result
+    
     ## Pre-condition
     assert os.path.isfile(filePath)
-    assert filePath.split(".")[-1] in IMAGE_FILE_EXTENSIONS
+    assert filePath.split(".")[-1] in SUPPORTED_IMAGE_FILE_EXTENSIONS
     ## Variables initialization
     with Image.open(filePath) as image:
         imageWidth, imageHeight = image.size
@@ -137,29 +180,15 @@ def GetInfoFromImage(filePath:str) -> MediaFileInfo:
     fileMTime = datetime.datetime.fromtimestamp(fileStat.st_mtime)
     fileCTime = datetime.datetime.fromtimestamp(fileStat.st_ctime)
     ## Pre-processing
-    exifData_36867 = datetime.datetime.strptime(exifData_36867, 
-        "%Y:%m:%d %H:%M:%S") if isinstance(exifData_36867, str) else None
-    exifData_36868 = datetime.datetime.strptime(exifData_36868, 
-        "%Y:%m:%d %H:%M:%S") if isinstance(exifData_36868, str) else None
-    exifData_306 = datetime.datetime.strptime(exifData_306, 
-        "%Y:%m:%d %H:%M:%S") if isinstance(exifData_306, str) else None
+    exifData_36867 = GetDatetimeFromExifDatetimeStr(exifData_36867)
+    exifData_36868 = GetDatetimeFromExifDatetimeStr(exifData_36868)
+    exifData_306 = GetDatetimeFromExifDatetimeStr(exifData_306)
     ## Get DatetimeInfo & DatetimeInfoType
-    datetimeInfoType = DatetimeType.TAKEN
-    datetimeInfo = exifData_36867
-    if datetimeInfo is None: 
-        datetimeInfoType = DatetimeType.TAKEN
-        datetimeInfo = exifData_36868 
+    datetimeInfoType = DatetimeType.ACTUAL
+    datetimeInfo = GetEarliestDatetime(exifData_36867, exifData_36868)
     if datetimeInfo is None:
-        datetimeInfoType = DatetimeType.EDITED
-        datetimeInfo = exifData_306
-    if datetimeInfo is None:
-        datetimeInfoType = DatetimeType.MODIFIED
-        datetimeInfo = fileMTime
-    if datetimeInfo is None or (
-        isinstance(fileCTime, datetime.datetime) and \
-        fileCTime < datetimeInfo):
-        datetimeInfoType = DatetimeType.CREATED
-        datetimeInfo = fileCTime
+        datetimeInfoType = DatetimeType.BEST_FOUND
+        datetimeInfo = GetEarliestDatetime(exifData_306, fileMTime, fileCTime)
     if datetimeInfo is None:
         datetimeInfoType = DatetimeType.UNKNOWN
     ## Get EditingSoftware
@@ -180,96 +209,100 @@ def GetInfoFromImage(filePath:str) -> MediaFileInfo:
 
 def GetInfoFromVideo(filePath:str) -> MediaFileInfo:
     ## Inner functions
-    def GetDatetimeFromMediaInfoFormatStr(datetimeStr:str):
-        ## Pre-condition
-        if not isinstance(datetimeStr, str):
-            return None
-        ## Main
-        """ Example: UTC 2021-03-23 14:32:37
-        
-            1. Remove leading time zone info
-            2. Convert to datetime object 
-        """
+    def GetDatetimeFromExiftoolDatetimeStr(
+            datetimeStr:str
+        ) -> datetime.datetime:
         try:
-            datetimeStr = re.sub(r"^[a-zA-Z ]*", '', datetimeStr) ## Remove leading time zone info
-            datetimeInfo = datetime.datetime.strptime(
-                datetimeStr, "%Y-%m-%d %H:%M:%S") ## Convert to datetime object 
+            datetimeStr_timezoneInfoRemoved = datetimeStr.split("+")[0]
+            result = datetime.datetime.strptime(
+                datetimeStr_timezoneInfoRemoved, "%Y:%m:%d %H:%M:%S")
+            isTimezoneAware = "+" in datetimeStr
+            if isTimezoneAware is False:
+                result = result\
+                    .replace(tzinfo=datetime.timezone.utc)\
+                    .astimezone(tz=None)\
+                    .replace(tzinfo=None) ## NOTE: remove time zone info to prevent "TypeError: can't compare offset-naive and offset-aware datetimes" later
         except:
-            datetimeInfo = None
-        return datetimeInfo
+            result = None
+        return result
     
+    def GetDatetimeFoundInExiftoolResult(resultDict:dict) -> dict:
+        datetimeFound = {
+                DatetimeType.ACTUAL: [],
+                DatetimeType.BEST_FOUND: []
+            }
+        if not isinstance(resultDict, dict):
+            return datetimeFound
+        if "CreationDate" in resultDict:
+            datetimeFound[DatetimeType.ACTUAL].append(
+                GetDatetimeFromExiftoolDatetimeStr(
+                    resultDict["CreationDate"] ) )
+        if "CreateDate" in resultDict:
+            datetimeFound[DatetimeType.BEST_FOUND].append(
+                GetDatetimeFromExiftoolDatetimeStr(
+                    resultDict["CreateDate"] ) )
+        if "ModifyDate" in resultDict:
+            datetimeFound[DatetimeType.BEST_FOUND].append(
+                GetDatetimeFromExiftoolDatetimeStr(
+                    resultDict["ModifyDate"] ) )
+        return datetimeFound
+    
+    def GetSizeInfoFoundInExiftoolResult(resultDict:dict) -> dict:
+        sizeInfo = {
+            "width": None,
+            "height": None
+        }
+        if not isinstance(resultDict, dict):
+            return sizeInfo
+        if "ImageWidth" in resultDict:
+            sizeInfo["width"] = int(resultDict["ImageWidth"] )
+        if "ImageHeight" in resultDict:
+            sizeInfo["height"] = int(resultDict["ImageHeight"] )
+        return sizeInfo
+
     ## Pre-condition
-    global MI_TriedLoading, MI
     assert os.path.isfile(filePath)
-    assert filePath.split(".")[-1] in VIDEO_FILE_EXTENSIONS
-    ## Pre-processing & Pre-condition
-    try:
-        from lib.MediaInfo.MediaInfoDLL3 import MediaInfo, Stream
-    except ModuleNotFoundError:
-        log.exception(f"Cannot find the required module")
-    if MI_TriedLoading is False and MI is None:
-        try:
-            MI = MediaInfo()
-        except FileNotFoundError:
-            log.exception(f"Cannot find the file required")
-        finally:
-            MI_TriedLoading = True
-    if not isinstance(MI, MediaInfo):
-        return None
+    assert filePath.split(".")[-1] in SUPPORTED_VIDEO_FILE_EXTENSIONS
     ## Variables initialization
-    """ MediaInfo usage
+    """ exiftool source & doc
     
         Reference
         ---- ----
-        1. https://stackoverflow.com/questions/27850629/python-hachoir-metadata-reading-fps-tag-from-mp4-file
+        1. https://github.com/exiftool/exiftool
+        2. https://exiftool.org/exiftool_pod.html
+        3. https://exiftool.org/dummies.html
     """
-    MI.Open(filePath)
-    width = MI.Get(Stream.Video, 0, "Width")
-    height = MI.Get(Stream.Video, 0, "Height")
-    datetimeInfo_recorded = MI.Get(Stream.General, 0, 
-        "Recorded_Date") ##
-    datetimeInfo_digitalized = MI.Get(Stream.General, 0, 
-        "Digitized_Date") ##
-    datetimeInfo_encoded = MI.Get(Stream.General, 0, 
-        "Encoded_Date") ## 
-    MI.Close()
+    command = ["exiftool.exe", "-time:all", "-S", "-j", filePath]
+    result = CallExternalProgramAndGetOutput(command)
+    try:
+        result = json.loads(result) ## NOTE: result is a list of dict
+        result = result[0]
+    except:
+        result = None
+    datetimeFound = GetDatetimeFoundInExiftoolResult(result)
+    sizeInfo = GetSizeInfoFoundInExiftoolResult(result)
     fileStat = os.stat(filePath)
     fileMTime = datetime.datetime.fromtimestamp(fileStat.st_mtime)
     fileCTime = datetime.datetime.fromtimestamp(fileStat.st_ctime)
     ## Pre-processing
-    datetimeInfo_recorded = GetDatetimeFromMediaInfoFormatStr(
-        datetimeInfo_recorded)
-    datetimeInfo_digitalized = GetDatetimeFromMediaInfoFormatStr(
-        datetimeInfo_digitalized)
-    datetimeInfo_encoded = GetDatetimeFromMediaInfoFormatStr(
-        datetimeInfo_encoded)
+    datetimeFound[DatetimeType.BEST_FOUND].extend( [fileMTime, fileCTime] )
     ## Main
-    datetimeInfoType = DatetimeType.TAKEN
-    datetimeInfo = datetimeInfo_recorded
+    datetimeInfoType = DatetimeType.ACTUAL
+    datetimeInfo = GetEarliestDatetime(*datetimeFound[DatetimeType.ACTUAL] )
     if datetimeInfo is None:
-        datetimeInfoType = DatetimeType.TAKEN
-        datetimeInfo = datetimeInfo_digitalized
-    if datetimeInfo is None:
-        datetimeInfoType = DatetimeType.EDITED
-        datetimeInfo = datetimeInfo_encoded
-    if datetimeInfo is None:
-        datetimeInfoType = DatetimeType.MODIFIED
-        datetimeInfo = fileMTime
-    if datetimeInfo is None or (
-        isinstance(fileCTime, datetime.datetime) and \
-        fileCTime < datetimeInfo):
-        datetimeInfoType = DatetimeType.CREATED
-        datetimeInfo = fileCTime
+        datetimeInfoType = DatetimeType.BEST_FOUND
+        datetimeInfo = GetEarliestDatetime(
+            *datetimeFound[DatetimeType.BEST_FOUND] )
     if datetimeInfo is None:
         datetimeInfoType = DatetimeType.UNKNOWN    
     return MediaFileInfo(
-        Width=width,
-        Height=height,
+        Width=sizeInfo["width"],
+        Height=sizeInfo["height"],
         DatetimeInfo=datetimeInfo,
         DatetimeInfoType=datetimeInfoType
     )
-    
-    
+
+
 def GetFileModificationType(file_baseName:str, 
         mediaFileInfo:MediaFileInfo=None
     ) -> ModificationType:
@@ -288,6 +321,7 @@ def GetNewFilePath(filePath:str,
         alternativeDatetime:datetime.datetime=None
     ) -> str:
     ## Variables initialization & Pre-condition
+    global isExiftoolExist
     fileDirectory = os.path.dirname(filePath)
     fileName = os.path.basename(filePath)
     fileName_splitted = fileName.split(".")
@@ -300,10 +334,11 @@ def GetNewFilePath(filePath:str,
         ]
     file_baseName = fileName_splitted[0]
     file_extension = fileName_splitted[1]
-    if file_extension in IMAGE_FILE_EXTENSIONS:
+    if file_extension in SUPPORTED_IMAGE_FILE_EXTENSIONS:
         mediaFileInfo = GetInfoFromImage(filePath=filePath)
-    elif file_extension in VIDEO_FILE_EXTENSIONS:
-        mediaFileInfo = GetInfoFromVideo(filePath=filePath)
+    elif file_extension in SUPPORTED_VIDEO_FILE_EXTENSIONS:
+        mediaFileInfo = GetInfoFromVideo(filePath=filePath) if \
+            isExiftoolExist is True else None
     else:
         return filePath
     ## Pre-condition
@@ -313,7 +348,7 @@ def GetNewFilePath(filePath:str,
     if isinstance(alternativeDatetime, datetime.datetime):
         useAlternative = \
             (mediaFileInfo.DatetimeInfoType == DatetimeType.UNKNOWN) or \
-            (mediaFileInfo.DatetimeInfoType != DatetimeType.TAKEN and \
+            (mediaFileInfo.DatetimeInfoType != DatetimeType.ACTUAL and \
             alternativeDatetime.date() < mediaFileInfo.DatetimeInfo.date() )
         if useAlternative:
             mediaFileInfo.DatetimeInfoType = DatetimeType.HARDCODED
@@ -389,6 +424,11 @@ parser.add_argument("--date",
 parser.add_argument("-r",
     action="store_true",
     help="Search media files in directories recursively")
+#### Initialize global variables
+isExiftoolExist = CallExternalProgramAndGetOutput(
+    command=["exiftool.exe", "-echo", "OK"] ) == "OK"
+if isExiftoolExist is False:
+    log.warning("\"exiftool\" cannot be found. Videos and audios are therefore not processed.")
 
 ## Variables initialization
 args = parser.parse_args()
@@ -406,11 +446,9 @@ else:
     alternativeDatetime = None
 datetimeTypeToStringMap = {
     DatetimeType.UNKNOWN: "X",
-    DatetimeType.TAKEN: "T",
-    DatetimeType.EDITED: "E",
-    DatetimeType.MODIFIED: "M",
-    DatetimeType.CREATED: "C",
-    DatetimeType.HARDCODED: "H"
+    DatetimeType.ACTUAL: "A",
+    DatetimeType.BEST_FOUND: "B",
+    DatetimeType.HARDCODED: "C"
 }
 modificationTypeToStringMap = {
     ModificationType.UNKNOWN: "Xxxx",
