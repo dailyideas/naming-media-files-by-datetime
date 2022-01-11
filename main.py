@@ -82,11 +82,14 @@ class DatetimeType(Enum):
     """
     UNKNOWN = enum.auto()
     TAKEN = enum.auto() ## The time the photo / video is recorded
-    MODIFIED = enum.auto() ## The time you make changes to the file and you overwrite the original file
+    EDITED = enum.auto() ## The time you edited the file by photo-editing software
+    MODIFIED = enum.auto() ## The time you edited the file, including modification to the file's metadata. This information is set by the OS 
     CREATED = enum.auto() ## The time the file was saved or archived and is set by the OS (for example when moving, copying, or downloading the file)
+    HARDCODED = enum.auto()
 
 
 class ModificationType(Enum):
+    UNKNOWN = enum.auto()
     ORIGINAL = enum.auto()
     EDITED = enum.auto()
 
@@ -109,6 +112,7 @@ def AbortProgram():
 
 
 def GetInfoFromImage(filePath:str) -> MediaFileInfo:
+    ## Variables initialization
     with Image.open(filePath) as image:
         imageWidth, imageHeight = image.size
         """ Exif tags info. Extract exif data by Python
@@ -121,24 +125,39 @@ def GetInfoFromImage(filePath:str) -> MediaFileInfo:
         exifData = image._getexif()
         if exifData is None:
             exifData = {} ## Ensure that the codes below can obtain the variable with correct data type
-        exifData_36867 = exifData.get(36867) ## DateTimeOriginal: The date and time when the original image data was generated
-        exifData_36868 = exifData.get(36868) ## DateTimeDigitized: The date and time when the image was stored as digital data
-        exifData_306 = exifData.get(306) ## DateTime: The date and time the file was changed
-        exifData_11 = exifData.get(11) ## ProcessingSoftware: The name and version of the software used to post-process the picture
-        exifData_305 = exifData.get(305) ## Software: The name and version of the software or firmware of the camera or image input device used to generate the image
+        exifData_36867 = exifData.get(36867, None) ## DateTimeOriginal: The date and time when the original image data was generated
+        exifData_36868 = exifData.get(36868, None) ## DateTimeDigitized: The date and time when the image was stored as digital data
+        exifData_306 = exifData.get(306, None) ## DateTime: The date and time the file was changed
+        exifData_11 = exifData.get(11, None) ## ProcessingSoftware: The name and version of the software used to post-process the picture
+        exifData_305 = exifData.get(305, None) ## Software: The name and version of the software or firmware of the camera or image input device used to generate the image
+    fileStat = os.stat(filePath)
+    fileMTime = datetime.datetime.fromtimestamp(fileStat.st_mtime)
+    fileCTime = datetime.datetime.fromtimestamp(fileStat.st_ctime)
+    ## Pre-processing
+    exifData_36867 = datetime.datetime.strptime(exifData_36867, 
+        "%Y:%m:%d %H:%M:%S") if isinstance(exifData_36867, str) else None
+    exifData_36868 = datetime.datetime.strptime(exifData_36868, 
+        "%Y:%m:%d %H:%M:%S") if isinstance(exifData_36868, str) else None
+    exifData_306 = datetime.datetime.strptime(exifData_306, 
+        "%Y:%m:%d %H:%M:%S") if isinstance(exifData_306, str) else None
     ## Get DatetimeInfo & DatetimeInfoType
     datetimeInfoType = DatetimeType.TAKEN
     datetimeInfo = exifData_36867
     if datetimeInfo is None: 
+        datetimeInfoType = DatetimeType.TAKEN
         datetimeInfo = exifData_36868 
     if datetimeInfo is None:
-        datetimeInfoType = DatetimeType.MODIFIED
+        datetimeInfoType = DatetimeType.EDITED
         datetimeInfo = exifData_306
-    try:
-        datetimeInfo = datetime.datetime.strptime(datetimeInfo, 
-            "%Y:%m:%d %H:%M:%S")
-    except:
-        datetimeInfo = None
+    if datetimeInfo is None:
+        datetimeInfoType = DatetimeType.MODIFIED
+        datetimeInfo = fileMTime
+    if datetimeInfo is None or (
+        isinstance(fileCTime, datetime.datetime) and \
+        fileCTime < datetimeInfo):
+        datetimeInfoType = DatetimeType.CREATED
+        datetimeInfo = fileCTime
+    if datetimeInfo is None:
         datetimeInfoType = DatetimeType.UNKNOWN
     ## Get EditingSoftware
     editingSoftware = exifData_11
@@ -249,15 +268,28 @@ def GetNewFilePath(filePath:str,
         return filePath
     
     ## Main
-    if not isinstance(mediaFileInfo.DatetimeInfo, datetime.datetime):
-        mediaFileInfo.DatetimeInfo = alternativeDatetime
+    if isinstance(alternativeDatetime,datetime.datetime):
+        if mediaFileInfo.DatetimeInfoType == DatetimeType.UNKNOWN:
+            mediaFileInfo.DatetimeInfoType = DatetimeType.HARDCODED
+            mediaFileInfo.DatetimeInfo = alternativeDatetime
+        if mediaFileInfo.DatetimeInfoType != DatetimeType.TAKEN:
+            
+            
+            
+            
+            
+            
+            
+        
     
     if not isinstance(mediaFileInfo.DatetimeInfo, datetime.datetime):
         log.warning(f"Cannot obtain datetime info from file \"{fileName}\"")
         datetimeInfo_formattedStr = "00000000_000000"
         datetimeInfoType_formattedStr = \
             datetimeTypeToStringMap[DatetimeType.UNKNOWN]
-        modificationType = ModificationType.ORIGINAL
+        modificationType = ModificationType.UNKNOWN
+        modificationType_formattedStr = \
+            modificationTypeToStringMap[modificationType]
     else:
         datetimeInfo_formattedStr = mediaFileInfo.DatetimeInfo.strftime(
             "%Y%m%d_%H%M%S")
@@ -265,7 +297,9 @@ def GetNewFilePath(filePath:str,
             datetimeTypeToStringMap[mediaFileInfo.DatetimeInfoType]
         modificationType = GetFileModificationType(
             file_baseName=file_baseName, mediaFileInfo=mediaFileInfo)
-    
+        modificationType_formattedStr = \
+            modificationTypeToStringMap[modificationType]
+
     newFilePath = filePath
     sequenceNum = -1
     fileNameDuplicated = True
@@ -277,8 +311,6 @@ def GetNewFilePath(filePath:str,
         ## Main
         sequenceNum += 1
         sequenceNum_formattedStr = str(sequenceNum).zfill(3)
-        modificationType_formattedStr = modificationTypeToStringMap.get(
-            modificationType, "Xxxx")
         newFileName = (
             f"{datetimeInfo_formattedStr}_"
             f"{datetimeInfoType_formattedStr}_"
@@ -338,10 +370,13 @@ else:
 datetimeTypeToStringMap = {
     DatetimeType.UNKNOWN: "X",
     DatetimeType.TAKEN: "T",
+    DatetimeType.EDITED: "E",
     DatetimeType.MODIFIED: "M",
-    DatetimeType.CREATED: "C"
+    DatetimeType.CREATED: "C",
+    DatetimeType.HARDCODED: "H"
 }
 modificationTypeToStringMap = {
+    ModificationType.UNKNOWN: "Xxxx",
     ModificationType.ORIGINAL: "Orig",
     ModificationType.EDITED: "Edit"
 }
