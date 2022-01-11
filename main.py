@@ -1,5 +1,5 @@
 import datetime, logging, os, sys, time
-import argparse, enum
+import argparse, enum, re
 from dataclasses import dataclass
 from enum import Enum
 from logging.handlers import RotatingFileHandler
@@ -112,6 +112,9 @@ def AbortProgram():
 
 
 def GetInfoFromImage(filePath:str) -> MediaFileInfo:
+    ## Pre-condition
+    assert os.path.isfile(filePath)
+    assert filePath.split(".")[-1] in IMAGE_FILE_EXTENSIONS
     ## Variables initialization
     with Image.open(filePath) as image:
         imageWidth, imageHeight = image.size
@@ -176,8 +179,28 @@ def GetInfoFromImage(filePath:str) -> MediaFileInfo:
 
 
 def GetInfoFromVideo(filePath:str) -> MediaFileInfo:
+    ## Inner functions
+    def GetDatetimeFromMediaInfoFormatStr(datetimeStr:str):
+        ## Pre-condition
+        if not isinstance(datetimeStr, str):
+            return None
+        ## Main
+        """ Example: UTC 2021-03-23 14:32:37
+        
+            1. Remove leading time zone info
+            2. Convert to datetime object 
+        """
+        try:
+            datetimeStr = re.sub(r"^[a-zA-Z ]*", '', datetimeStr) ## Remove leading time zone info
+            datetimeInfo = datetime.datetime.strptime(
+                datetimeStr, "%Y-%m-%d %H:%M:%S") ## Convert to datetime object 
+        except:
+            datetimeInfo = None
+        return datetimeInfo
+    
     ## Pre-condition
     global MI_TriedLoading, MI
+    assert os.path.isfile(filePath)
     assert filePath.split(".")[-1] in VIDEO_FILE_EXTENSIONS
     ## Pre-processing & Pre-condition
     try:
@@ -193,7 +216,7 @@ def GetInfoFromVideo(filePath:str) -> MediaFileInfo:
             MI_TriedLoading = True
     if not isinstance(MI, MediaInfo):
         return None
-    ## Main
+    ## Variables initialization
     """ MediaInfo usage
     
         Reference
@@ -203,22 +226,42 @@ def GetInfoFromVideo(filePath:str) -> MediaFileInfo:
     MI.Open(filePath)
     width = MI.Get(Stream.Video, 0, "Width")
     height = MI.Get(Stream.Video, 0, "Height")
-    datetimeInfo_modified = MI.Get(Stream.General, 0, 
-        "File_Modified_Date_Local") ## Datetime of filming
-    datetimeInfo_created = MI.Get(Stream.General, 0, 
-        "File_Created_Date_Local") ## Datetime of copying
+    datetimeInfo_recorded = MI.Get(Stream.General, 0, 
+        "Recorded_Date") ##
+    datetimeInfo_digitalized = MI.Get(Stream.General, 0, 
+        "Digitized_Date") ##
+    datetimeInfo_encoded = MI.Get(Stream.General, 0, 
+        "Encoded_Date") ## 
     MI.Close()
-    datetimeInfoType = DatetimeType.MODIFIED
-    datetimeInfo = datetimeInfo_modified
-    if datetimeInfo == "":
+    fileStat = os.stat(filePath)
+    fileMTime = datetime.datetime.fromtimestamp(fileStat.st_mtime)
+    fileCTime = datetime.datetime.fromtimestamp(fileStat.st_ctime)
+    ## Pre-processing
+    datetimeInfo_recorded = GetDatetimeFromMediaInfoFormatStr(
+        datetimeInfo_recorded)
+    datetimeInfo_digitalized = GetDatetimeFromMediaInfoFormatStr(
+        datetimeInfo_digitalized)
+    datetimeInfo_encoded = GetDatetimeFromMediaInfoFormatStr(
+        datetimeInfo_encoded)
+    ## Main
+    datetimeInfoType = DatetimeType.TAKEN
+    datetimeInfo = datetimeInfo_recorded
+    if datetimeInfo is None:
+        datetimeInfoType = DatetimeType.TAKEN
+        datetimeInfo = datetimeInfo_digitalized
+    if datetimeInfo is None:
+        datetimeInfoType = DatetimeType.EDITED
+        datetimeInfo = datetimeInfo_encoded
+    if datetimeInfo is None:
+        datetimeInfoType = DatetimeType.MODIFIED
+        datetimeInfo = fileMTime
+    if datetimeInfo is None or (
+        isinstance(fileCTime, datetime.datetime) and \
+        fileCTime < datetimeInfo):
         datetimeInfoType = DatetimeType.CREATED
-        datetimeInfo = datetimeInfo_created
-    if datetimeInfo == "":
-        datetimeInfoType = DatetimeType.UNKNOWN
-    else:
-        datetimeInfo = datetimeInfo.split(".")[0]
-        datetimeInfo = datetime.datetime.strptime(datetimeInfo, 
-            "%Y-%m-%d %H:%M:%S")
+        datetimeInfo = fileCTime
+    if datetimeInfo is None:
+        datetimeInfoType = DatetimeType.UNKNOWN    
     return MediaFileInfo(
         Width=width,
         Height=height,
