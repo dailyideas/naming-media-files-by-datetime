@@ -3,6 +3,7 @@
 # Table of contents
 - [Background](#background)
 - [File naming](#File-naming)
+- [Supported file formats](#Supported-file-formats)
 - [Warnings](#Warnings)
 - [Installation guide](#Installation-guide)
 - [Usage](#Usage)
