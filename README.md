@@ -19,9 +19,9 @@
 If we possess multiple photo-taking devices (e.g. a mobile phone and a digital camera), we will find that each device may have its own file naming format for the media taken. When we transfer these files to computer and place them under the same folder, there will be a mess. One solution is to rename all the files so that they all follow the same naming convention, which is what this tool doing.
 
 # File naming
-    ```
-    <Date>_<Time>_<Datetime type>_<Editing status>_<Serial number>
-    ```
+```
+<Date>_<Time>_<Datetime type>_<Editing status>_<Serial number>
+```
 1. Date
     - The photo-taking date, or the recording date of video or audio.
     - If this information was not found in the file's metadata, alternative date information will be substituted. See *Datetime type* for details.
