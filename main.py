@@ -77,7 +77,11 @@ log.setLevel(LOG_LEVEL)
 loggers = [logging.getLogger(name) for name in 
     logging.root.manager.loggerDict]
 for logger in loggers:
-    logger.setLevel(LOG_LEVEL)
+    logger.setLevel(LOG_LEVEL) 
+"""
+## Disable configuration file loading in current release.
+## Therefore, user must put the location of exiftool to the PATH
+
 #### Config (after logging)
 configData = None
 if not os.path.isfile(CONFIG_FILE_PATH):
@@ -92,6 +96,7 @@ if isinstance(exiftoolDirectory, str):
     os.environ["PATH"] += f"{exiftoolDirectory};"
 else:
     log.warning("exiftoolDirectory cannot be found in the config file")
+"""
 
 
 #### #### #### #### #### 
