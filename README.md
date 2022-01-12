@@ -8,9 +8,9 @@
 - [Usage](#Usage)
     - [Execute from Python](#Execute-from-python)
     - [Execute from executable](#Execute-from-executable)
-    - [Execute from *cliAssistant.exe*](#Execute-from-*cliassistant.exe*)
+    - [Execute from *cliAssistant.exe*](#Execute-from-cliassistantexe)
     - [Arguments](#Arguments)
-    - [Licensing](#Licensing)
+- [Licensing](#Licensing)
 - [Dependencies](#Dependencies)
 - [Versioning](#Versioning)
 
@@ -89,11 +89,11 @@ If we possess multiple photo-taking devices (e.g. a mobile phone and a digital c
         - Move `exiftool.exe` to a folder you want. 
 1. (Windows only) Add the location of **exiftool** to *PATH*.
     - Open the *Properties* window of `exiftool.exe`.
-    - [Tutorial](https://www.howto-connect.com/open-file-properties-windows-10/)
+        - [Tutorial](https://www.howto-connect.com/open-file-properties-windows-10/)
     - Copy the *Location* value.
     - Open the *Environment Variables* window of the Windows system.
-    - [Tutorial](https://www.architectryan.com/2018/08/31/how-to-change-environment-variables-on-windows-10/)
-    - [Tutorial](https://www.computerhope.com/issues/ch000549.htm)
+        - [Tutorial](https://www.architectryan.com/2018/08/31/how-to-change-environment-variables-on-windows-10/)
+        - [Tutorial](https://www.computerhope.com/issues/ch000549.htm)
     - Edit the *Path* variable of *User variables* by double-clicking the row. 
     - Click the button *New* on the top-right.
     - Paste the *Location* value previously copied.
@@ -110,7 +110,7 @@ If we possess multiple photo-taking devices (e.g. a mobile phone and a digital c
 2. Execute the tool
     - [Execute from Python](#Execute-from-Python)
     - [Execute from executable](#Execute-from-executable)
-    - [Execute from *cliAssistant.exe*](#Execute-from-*cliAssistant.exe*)
+    - [Execute from *cliAssistant.exe*](#Execute-from-cliAssistantexe)
 
 ## Execute from Python
 ```

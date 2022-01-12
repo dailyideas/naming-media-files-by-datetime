@@ -2,7 +2,7 @@
 
 # Table of contents
 1. [Git commit message best practices](#Git-commit-message-best-practices)
-1. [Build executable (Windows)](#Build-executable-(Windows))
+1. [Build executable (Windows)](#Build-executable-Windows)
 
 # Git commit message best practices
 Mainly following the conventions suggested by [kazupon/git-commit-message-convention](https://github.com/kazupon/git-commit-message-convention). Therefore, this section is copied and modified from [kazupon/git-commit-message-convention](https://github.com/kazupon/git-commit-message-convention), which is licensed under the [MIT License](https://github.com/kazupon/git-commit-message-convention/blob/master/LICENSE).
