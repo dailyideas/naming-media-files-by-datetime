@@ -54,6 +54,12 @@ If we possess multiple photo-taking devices (e.g. a mobile phone and a digital c
     - It does not guarantee that a photo with smaller *Serial number* must be taken before a larger one.
     - There is no relationship between two files with same *Serial number* but different *Editing status*.
 
+# Supported file formats
+| Type   | Supported formats |
+| ------ | ----------------- |
+| Photos | JPEG, JPG, PNG |
+| Videos | MP4, MOV |
+
 # Warnings
 1. This file naming style may not suit all users' preferences. Customized file naming format is currently not supported. If you are not willing to rename your media files as descripted in Section [File naming](#File-naming), please do not consider this tool. 
 
