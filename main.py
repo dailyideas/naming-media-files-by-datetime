@@ -468,7 +468,7 @@ datetimeTypeToStringMap = {
     DatetimeType.HARDCODED: "C"
 }
 modificationTypeToStringMap = {
-    ModificationType.UNKNOWN: "Xxxx",
+    ModificationType.UNKNOWN: "Orig",
     ModificationType.ORIGINAL: "Orig",
     ModificationType.EDITED: "Edit"
 }
@@ -494,6 +494,7 @@ else:
     pathToFileList = [os.path.join(mediaFilesDirectory, f) for f in \
         os.listdir(mediaFilesDirectory) ]
     pathToFileList = [p for p in pathToFileList if os.path.isfile(p) ]
+pathToFileList.sort() ## Sort the paths
 
 lastDirectory = None
 for filePath in pathToFileList:
